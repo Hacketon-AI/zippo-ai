@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.db.session import get_session
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.assistant_service import AssistantService
 from app.services.ollama_service import OllamaResponseError, OllamaUnavailableError
 
 router = APIRouter(tags=["chat"])
+
+_chat_rate_limit = get_settings().chat_rate_limit
 
 
 def get_assistant_service() -> AssistantService:
@@ -15,14 +19,16 @@ def get_assistant_service() -> AssistantService:
 
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit(_chat_rate_limit)
 async def chat(
-    request: ChatRequest,
+    request: Request,
+    payload: ChatRequest,
     assistant: AssistantService = Depends(get_assistant_service),
     db: AsyncSession = Depends(get_session),
 ) -> ChatResponse:
     """Send a message to the local assistant. Thin handler only."""
     try:
-        return await assistant.handle_chat(request, db)
+        return await assistant.handle_chat(payload, db)
     except OllamaUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

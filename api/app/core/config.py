@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:5173"
 
+    # Rate limiting
+    rate_limit_enabled: bool = True
+    chat_rate_limit: str = "10/minute"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

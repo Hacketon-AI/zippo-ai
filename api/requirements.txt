@@ -8,5 +8,6 @@ asyncpg==0.29.0
 alembic==1.13.3
 qdrant-client==1.12.1
 python-multipart==0.0.12
+slowapi==0.1.9
 pytest==8.3.3
 pytest-asyncio==0.24.0
