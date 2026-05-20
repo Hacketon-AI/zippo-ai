@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from pathlib import Path
 from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +39,12 @@ _MAX_MEMORY_CONTEXT = 3
 _CORRECTION_SCORE_THRESHOLD = 0.90
 _CORRECTION_LIMIT = 1
 _CORRECTION_FILTER = {"type": "correction"}
+
+# Load persona system prompt once at module level.
+_PERSONA_PATH = Path(__file__).resolve().parent.parent / "prompts" / "system_prompt.md"
+_PERSONA_PROMPT: str = ""
+if _PERSONA_PATH.is_file():
+    _PERSONA_PROMPT = _PERSONA_PATH.read_text(encoding="utf-8").strip()
 
 
 class AssistantService:
@@ -133,12 +140,13 @@ class AssistantService:
         top_score = memory_hits[0]["score"] if memory_hits else None
 
         # 4) Call Ollama.
+        full_system = self._compose_full_system(system_prompt)
         result: Optional[dict[str, Any]] = None
         ollama_error = False
         try:
             result = await self._ollama.generate(
                 prompt=request.message,
-                system=system_prompt,
+                system=full_system,
             )
         except OllamaError:
             logger.exception("Ollama generation failed")
@@ -150,7 +158,7 @@ class AssistantService:
             try:
                 fallback_answer = await self._fallback.generate(
                     message=request.message,
-                    context=system_prompt,
+                    context=full_system,
                 )
                 result = {"answer": fallback_answer, "model": "external"}
                 used_fallback = True
@@ -234,3 +242,13 @@ class AssistantService:
             "If it does not help, ignore it and answer from general knowledge."
         )
         return "\n".join(lines)
+
+    @staticmethod
+    def _compose_full_system(memory_context: Optional[str]) -> Optional[str]:
+        """Combine persona prompt with optional memory context."""
+        parts: list[str] = []
+        if _PERSONA_PROMPT:
+            parts.append(_PERSONA_PROMPT)
+        if memory_context:
+            parts.append(memory_context)
+        return "\n\n".join(parts) if parts else None
