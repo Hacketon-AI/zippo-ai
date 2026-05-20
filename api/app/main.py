@@ -1,0 +1,40 @@
+import logging
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
+from fastapi import FastAPI
+
+from app.core.config import get_settings
+from app.routes import chat, feedback, health, knowledge
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """App startup/shutdown lifecycle."""
+    # Best-effort: ensure Qdrant collection exists.
+    try:
+        from app.services.qdrant_service import QdrantService
+
+        await QdrantService().ensure_collection()
+        logger.info("Qdrant collection ready")
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Could not ensure Qdrant collection on startup. "
+            "Memory features will fail until Qdrant is available."
+        )
+    yield
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app.include_router(health.router, prefix=settings.api_prefix)
+    app.include_router(chat.router, prefix=settings.api_prefix)
+    app.include_router(knowledge.router, prefix=settings.api_prefix)
+    app.include_router(feedback.router, prefix=settings.api_prefix)
+    return app
+
+
+app = create_app()
