@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     external_fallback_api_key: str = ""
     external_fallback_timeout_seconds: float = 60.0
 
+    # CORS
+    cors_origins: str = "http://localhost:5173"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
