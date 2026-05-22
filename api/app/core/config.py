@@ -50,6 +50,26 @@ class Settings(BaseSettings):
     # Rate limiting
     rate_limit_enabled: bool = True
     chat_rate_limit: str = "10/minute"
+    intelligence_rate_limit: str = "5/minute"
+
+    # Bright Data (disabled by default)
+    brightdata_enabled: bool = False
+    brightdata_api_key: str = ""
+    brightdata_provider: str = "serp_api"
+    brightdata_serp_endpoint: str = ""
+    brightdata_serp_zone: str = "serp_api1"
+    brightdata_web_unlocker_endpoint: str = ""
+    brightdata_timeout_seconds: float = 60.0
+    brightdata_max_results: int = 5
+    brightdata_country: str = "us"
+    brightdata_language: str = "en"
+
+    # Bright Data MCP (alternative provider mode)
+    brightdata_mcp_enabled: bool = False
+    brightdata_mcp_command: str = "npx"
+    brightdata_mcp_package: str = "@brightdata/mcp"
+    brightdata_mcp_timeout_seconds: int = 90
+    brightdata_mcp_max_results: int = 5
 
     model_config = SettingsConfigDict(
         env_file=".env",
