@@ -20,13 +20,13 @@ function SignalCard({ signal }: Props) {
       <div className="signal-body">
         <span
           className="signal-confidence"
-          style={{ color: CONFIDENCE_COLORS[signal.confidence] ?? "#888" }}
+          style={{ color: CONFIDENCE_COLORS[signal.confidence ?? ""] ?? "#888" }}
         >
-          {signal.confidence.toUpperCase()}
+          {(signal.confidence ?? "unknown").toUpperCase()}
         </span>
         <p className="signal-description">{signal.description}</p>
       </div>
-      {signal.source_urls.length > 0 && (
+      {(signal.source_urls ?? []).length > 0 && (
         <div className="signal-sources">
           {signal.source_urls.map((url, i) => (
             <a
