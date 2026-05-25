@@ -17,8 +17,8 @@ function NameModal({ onSubmit }: Props) {
 
   return (
     <form className="name-modal" onSubmit={handleSubmit}>
-      <h2>👋 Halo!</h2>
-      <p style={{ marginBottom: "1rem", color: "#aaa" }}>
+      <h2>Halo!</h2>
+      <p className="name-modal-desc">
         Siapa nama kamu?
       </p>
       <input

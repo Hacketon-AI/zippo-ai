@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const LOADING_MSG =
-  "bentar bro ku tanya dulu sama bg agung ya, soalnya aku belum begitu paham dengan pertanyaan mu";
+const LOADING_MSG ="Please give me a moment while I confirm it with the system first, as I want to ensure I fully understand the question you’ve asked."
+
 
 interface Message {
   role: "user" | "assistant";
