@@ -305,6 +305,18 @@ class BrightDataService:
             else:
                 title = anchor.get_text(separator=" ", strip=True)
 
+            # Clean title by removing breadcrumbs or appended URLs
+            if " › " in title:
+                title = title.split(" › ")[0].strip()
+            elif " ... " in title:
+                title = title.split(" ... ")[0].strip()
+            elif " » " in title:
+                title = title.split(" » ")[0].strip()
+            elif " - " in title:
+                title = title.split(" - ")[0].strip()
+            elif " | " in title:
+                title = title.split(" | ")[0].strip()
+
             if not title:
                 continue
 
@@ -355,9 +367,7 @@ class BrightDataService:
 
         # Skip internal Google domains.
         domain = parsed.hostname or ""
-        if domain in _SKIP_DOMAINS:
-            return None
-        if domain.endswith(".google.com") or domain == "google.com":
+        if domain in _SKIP_DOMAINS or "google" in domain:
             return None
 
         # Only accept absolute http(s) URLs.
@@ -368,15 +378,42 @@ class BrightDataService:
 
     @staticmethod
     def _find_snippet(anchor: Tag) -> str:
-        """Attempt to find a snippet near the anchor element."""
+        """Attempt to find a snippet near the anchor element, skipping breadcrumbs and internal links."""
+        parent = anchor.parent
+        anchor_text = anchor.get_text(separator=" ", strip=True)
+        for _ in range(6):
+            if parent is None:
+                break
+            if isinstance(parent, Tag) and parent.name == "div":
+                for el in parent.find_all(["span", "div"], recursive=True):
+                    # Skip elements that are inside the anchor itself to avoid breadcrumbs
+                    if el.find_parent("a") == anchor or el == anchor:
+                        continue
+                    
+                    # Skip if element contains nested divs/spans to get the leaf text container
+                    if el.find(["div", "span"]):
+                        continue
+                        
+                    text = el.get_text(separator=" ", strip=True)
+                    # Skip low quality breadcrumb-like texts or URLs
+                    if "›" in text or "»" in text or "http" in text:
+                        continue
+                        
+                    if len(text) > 40 and text != anchor_text:
+                        return text
+            parent = parent.parent
+            
+        # Fallback: less restrictive search
         parent = anchor.parent
         for _ in range(4):
             if parent is None:
                 break
             if isinstance(parent, Tag) and parent.name == "div":
                 for el in parent.find_all(["span", "div"], recursive=True):
+                    if el.find_parent("a") == anchor or el == anchor:
+                        continue
                     text = el.get_text(separator=" ", strip=True)
-                    if len(text) > 40 and text != anchor.get_text(separator=" ", strip=True):
+                    if len(text) > 30 and text != anchor_text and "›" not in text:
                         return text
             parent = parent.parent
         return ""
