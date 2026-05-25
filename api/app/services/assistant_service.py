@@ -47,6 +47,18 @@ if _PERSONA_PATH.is_file():
     _PERSONA_PROMPT = _PERSONA_PATH.read_text(encoding="utf-8").strip()
 
 
+def _create_llm_service() -> OllamaService:
+    """Factory: return OpenRouter or Ollama based on config."""
+    from app.core.config import get_settings
+    from app.services.openrouter_service import OpenRouterService
+    settings = get_settings()
+    if settings.use_openrouter and settings.openrouter_api_key:
+        logger.info("LLM backend: OpenRouter (model=%s)", settings.openrouter_model)
+        return OpenRouterService(settings)  # type: ignore[return-value]
+    logger.info("LLM backend: Ollama (model=%s)", settings.ollama_default_model)
+    return OllamaService(settings)
+
+
 class AssistantService:
     """Coordinates chat requests across the assistant's resources."""
 
@@ -57,7 +69,7 @@ class AssistantService:
         memory: Optional[MemoryService] = None,
         fallback: Optional[ExternalFallbackService] = None,
     ) -> None:
-        self._ollama = ollama or OllamaService()
+        self._ollama = ollama or _create_llm_service()
         self._cache = cache or CacheService()
         self._memory = memory or MemoryService()
         self._fallback = fallback or ExternalFallbackService()

@@ -22,6 +22,7 @@ from app.schemas.intelligence import (
 from app.services.brightdata_mcp_service import BrightDataMCPService
 from app.services.brightdata_service import BrightDataService
 from app.services.ollama_service import OllamaError, OllamaService
+from app.services.assistant_service import _create_llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class IntelligenceService:
     ) -> None:
         self._brightdata = brightdata or BrightDataService()
         self._brightdata_mcp = brightdata_mcp or BrightDataMCPService()
-        self._ollama = ollama or OllamaService()
+        self._ollama = ollama or _create_llm_service()
         self._provider = get_settings().brightdata_provider
 
     async def research(

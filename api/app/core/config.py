@@ -16,12 +16,19 @@ class Settings(BaseSettings):
     # API
     api_prefix: str = "/api/v1"
 
-    # Ollama
+    # Ollama (local)
     ollama_base_url: str = "http://ollama:11434"
     ollama_default_model: str = "qwen3:4b"
     ollama_timeout_seconds: float = 60.0
     ollama_embed_model: str = "nomic-embed-text"
     ollama_embed_timeout_seconds: float = 60.0
+
+    # OpenRouter (cloud LLM — set use_openrouter=true to enable)
+    use_openrouter: bool = False
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "qwen/qwen3-235b-a22b"
+    openrouter_timeout_seconds: float = 120.0
 
     # PostgreSQL
     database_url: str = (

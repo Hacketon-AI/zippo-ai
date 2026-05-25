@@ -1,0 +1,14 @@
+.git
+.gitignore
+*.md
+docs/
+.kiro/
+web/node_modules
+web/dist
+web/.env
+web/.env.*
+api/__pycache__
+api/**/__pycache__
+api/**/*.pyc
+api/.env
+*.log
