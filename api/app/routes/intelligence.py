@@ -31,5 +31,10 @@ async def research(
         query=payload.query,
         country=payload.country,
         language=payload.language,
-        max_results=payload.max_results,
+        max_results=payload.max_sources or payload.max_results,
+        track=payload.track or "General",
+        company=payload.company,
+        competitors=payload.competitors,
+        use_brightdata=payload.use_brightdata,
     )
+

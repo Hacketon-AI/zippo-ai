@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-const LOADING_MSG ="Please give me a moment while I confirm it with the system first, as I want to ensure I fully understand the question you’ve asked."
-
+const MAX_HISTORY = 10;
 
 interface Message {
   role: "user" | "assistant";
@@ -14,37 +13,65 @@ interface Message {
 
 interface Props {
   visitorName: string;
+  onNewMessage?: (userText: string) => void;
 }
 
-function ChatWindow({ visitorName }: Props) {
+// Send icon SVG
+function SendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path d="M22 2L11 13" />
+      <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+    </svg>
+  );
+}
+
+function ChatWindow({ visitorName, onNewMessage }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: `halo ${visitorName}, bagaimana kabar mu? mari kita cerita`,
+      content: `Halo ${visitorName}! 👋 Aku Zippo AI, asisten kecerdasan buatan kamu. Ada yang bisa aku bantu hari ini?`,
     },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const sendMessage = async () => {
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
+  }, [input]);
+
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || sending) return;
 
     const userMsg: Message = { role: "user", content: text };
     const loadingMsg: Message = {
       role: "assistant",
-      content: LOADING_MSG,
+      content: "",
       loading: true,
     };
 
-    setMessages((prev) => [...prev, userMsg, loadingMsg]);
+    // Keep only last MAX_HISTORY messages (excluding welcome) + new ones
+    setMessages((prev) => {
+      const history = prev.slice(-MAX_HISTORY);
+      return [...history, userMsg, loadingMsg];
+    });
     setInput("");
     setSending(true);
+
+    // Notify parent for chat history title
+    onNewMessage?.(text);
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/chat`, {
@@ -52,7 +79,7 @@ function ChatWindow({ visitorName }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          mode: "local_only",
+          mode: "external_allowed",
           use_memory: true,
         }),
       });
@@ -75,14 +102,13 @@ function ChatWindow({ visitorName }: Props) {
 
       setMessages((prev) => {
         const updated = [...prev];
-        // Replace the loading message (last item)
         updated[updated.length - 1] = assistantMsg;
         return updated;
       });
     } catch (err: unknown) {
       const errorMsg: Message = {
         role: "assistant",
-        content: err instanceof Error ? err.message : "Terjadi kesalahan",
+        content: err instanceof Error ? err.message : "Terjadi kesalahan. Coba lagi.",
         error: true,
       };
       setMessages((prev) => {
@@ -93,7 +119,7 @@ function ChatWindow({ visitorName }: Props) {
     } finally {
       setSending(false);
     }
-  };
+  }, [input, sending, onNewMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -102,39 +128,144 @@ function ChatWindow({ visitorName }: Props) {
     }
   };
 
+  const initials = visitorName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const suggestions = [
+    { label: "Analisis", text: "Bantu aku menganalisis tren pasar terbaru" },
+    { label: "Riset", text: "Carikan informasi tentang teknologi AI terkini" },
+    { label: "Rangkuman", text: "Rangkumkan berita penting hari ini" },
+    { label: "Diskusi", text: "Mari diskusi tentang masa depan AI" },
+  ];
+
+  const showWelcome = messages.length <= 1;
+
   return (
-    <div className="chat-container">
-      <div className="chat-header">Personal AI Assistant</div>
-      <div className="chat-messages">
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`msg ${msg.role}${msg.loading ? " loading" : ""}${msg.error ? " error" : ""}`}
-          >
-            {msg.content}
-            {msg.meta && (
-              <div className="msg-meta">
-                source: {String(msg.meta.source)} | cache:{" "}
-                {String(msg.meta.cache_hit)} | memory:{" "}
-                {String(msg.meta.used_memory)}
+    <div className="chat-view">
+      {/* Messages */}
+      <div className="chat-messages-area" id="chat-messages-area">
+        <div className="messages-inner">
+          {showWelcome && (
+            <div className="welcome-screen">
+              <img src="/zippo-ai.png" alt="Zippo AI" className="welcome-logo" />
+              <h2>Halo, {visitorName}!</h2>
+              <p>
+                Aku siap membantu kamu dengan riset, analisis, dan percakapan cerdas
+                berbasis data real-time.
+              </p>
+              <div className="welcome-suggestions">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    id={`suggestion-${i}`}
+                    className="suggestion-btn"
+                    onClick={() => {
+                      setInput(s.text);
+                      textareaRef.current?.focus();
+                    }}
+                  >
+                    <span className="suggestion-label">{s.label}</span>
+                    {s.text}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-        ))}
-        <div ref={bottomRef} />
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <div
+              key={i}
+              id={`msg-${i}`}
+              className={`msg-row ${msg.role === "user" ? "user-row" : "assistant-row"}`}
+            >
+              {/* Avatar */}
+              <div
+                className={`msg-avatar ${msg.role === "user" ? "user-avatar-msg" : "ai-avatar"}`}
+              >
+                {msg.role === "user" ? (
+                  initials
+                ) : (
+                  <img src="/zippo-ai.png" alt="AI" />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="msg-content-wrap">
+                <div className="msg-sender">
+                  {msg.role === "user" ? visitorName : "Zippo AI"}
+                </div>
+                <div
+                  className={`msg-bubble${msg.loading ? " loading-bubble" : ""}${msg.error ? " error-bubble" : ""}`}
+                >
+                  {msg.loading ? (
+                    <div className="typing-dots">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+
+                {/* Meta tags */}
+                {msg.meta && (
+                  <div className="msg-meta-row">
+                    {Boolean(msg.meta.source) && (
+                      <span className="msg-meta-tag">
+                        📡 {String(msg.meta.source)}
+                      </span>
+                    )}
+                    {msg.meta.cache_hit !== undefined && (
+                      <span className="msg-meta-tag">
+                        {Boolean(msg.meta.cache_hit) ? "⚡ Cache" : "🔄 Fresh"}
+                      </span>
+                    )}
+                    {msg.meta.used_memory !== undefined && (
+                      <span className="msg-meta-tag">
+                        🧠 Memory: {String(msg.meta.used_memory)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          <div ref={bottomRef} style={{ height: "8px" }} />
+        </div>
       </div>
-      <div className="chat-input-area">
-        <input
-          type="text"
-          placeholder="Ketik pesan..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={sending}
-        />
-        <button onClick={sendMessage} disabled={sending || !input.trim()}>
-          Kirim
-        </button>
+
+      {/* Input Bar */}
+      <div className="chat-input-bar">
+        <div className="chat-input-inner">
+          <textarea
+            id="chat-input"
+            ref={textareaRef}
+            className="chat-input-field"
+            placeholder="Ketik pesan... (Enter untuk kirim, Shift+Enter untuk baris baru)"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={sending}
+            rows={1}
+          />
+          <div className="chat-input-actions">
+            <span className="input-hint">Shift+Enter untuk baris baru</span>
+            <button
+              id="send-btn"
+              className="send-btn"
+              onClick={sendMessage}
+              disabled={sending || !input.trim()}
+              title="Kirim pesan"
+            >
+              <SendIcon />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

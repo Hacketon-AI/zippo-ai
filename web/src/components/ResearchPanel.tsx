@@ -5,7 +5,7 @@ import ResearchForm from "./ResearchForm";
 import ResearchResult from "./ResearchResult";
 
 const LOADING_MSG =
-  "I'm gathering live data from the web first — give me a moment while I verify the latest information from reliable public sources.";
+  "Sedang mengumpulkan data langsung dari web — tunggu sebentar sementara aku memverifikasi informasi terbaru dari sumber publik yang terpercaya.";
 
 function ResearchPanel() {
   const [loading, setLoading] = useState(false);
@@ -24,17 +24,17 @@ function ResearchPanel() {
       if (err instanceof ResearchError) {
         if (err.status === 401 || err.status === 403) {
           setError(
-            "Bright Data API key is missing or invalid. Please configure it in the server settings."
+            "Bright Data API key tidak valid atau belum dikonfigurasi. Silakan periksa pengaturan server."
           );
         } else if (err.status === 429) {
           setError(
-            "Rate limit reached. Please wait a moment before submitting another request."
+            "Rate limit tercapai. Tunggu sebentar sebelum mengirim permintaan berikutnya."
           );
         } else {
           setError(err.message);
         }
       } else {
-        setError(err instanceof Error ? err.message : "An unexpected error occurred");
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan tak terduga");
       }
     } finally {
       setLoading(false);
@@ -42,7 +42,7 @@ function ResearchPanel() {
   };
 
   return (
-    <div className="research-panel">
+    <>
       <ResearchForm onRun={handleRun} loading={loading} />
 
       {loading && (
@@ -59,7 +59,7 @@ function ResearchPanel() {
       )}
 
       {result && !loading && <ResearchResult result={result} />}
-    </div>
+    </>
   );
 }
 

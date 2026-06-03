@@ -36,6 +36,11 @@ class IntelligenceRequest(BaseModel):
     country: Optional[str] = None
     language: Optional[str] = None
     max_results: Optional[int] = Field(None, ge=1, le=20)
+    track: Optional[Literal["GTM", "Finance", "Security", "General"]] = "General"
+    company: Optional[str] = None
+    competitors: Optional[str] = None
+    max_sources: Optional[int] = Field(None, ge=1, le=20)
+    use_brightdata: Optional[bool] = None
 
 
 class IntelligenceSourceItem(BaseModel):
@@ -47,9 +52,23 @@ class IntelligenceSourceItem(BaseModel):
     source: IntelligenceSource = "brightdata"
 
 
+class IntelligenceSignal(BaseModel):
+    """A single intelligence signal object."""
+
+    title: str
+    category: str
+    confidence: Literal["high", "medium", "low"]
+    description: str
+    source_urls: list[str] = Field(default_factory=list)
+
+
 class IntelligenceMetadata(BaseModel):
     """Metadata block for the intelligence response."""
 
+    used_brightdata: bool = False
+    saved_to_memory: bool = False
+    source_count: int = 0
+    track: str = "General"
     result_count: int = 0
     provider: Optional[str] = None
     fallback_provider: Optional[str] = None
@@ -62,7 +81,9 @@ class IntelligenceResponse(BaseModel):
     query: str
     used_brightdata: bool = False
     sources: list[IntelligenceSourceItem] = Field(default_factory=list)
-    summary: Optional[str] = None
-    signals: list[Any] = Field(default_factory=list)
-    recommendations: list[Any] = Field(default_factory=list)
+    executive_summary: str
+    summary: Optional[str] = None  # Deprecated backward compatibility fallback
+    signals: list[IntelligenceSignal] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
     metadata: IntelligenceMetadata = Field(default_factory=IntelligenceMetadata)
+

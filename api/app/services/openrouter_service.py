@@ -6,6 +6,8 @@ Drop-in replacement for OllamaService. Same interface:
 Raises OllamaUnavailableError / OllamaResponseError on failure so that
 all existing error-handling in AssistantService and IntelligenceService
 continues to work without changes.
+
+Auto-retries with fallback models when primary model hits 429 rate limit.
 """
 
 from __future__ import annotations
@@ -22,9 +24,24 @@ logger = logging.getLogger(__name__)
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
+# Fallback model chain — tried in order when primary model fails with 429 or 404
+_FALLBACK_MODELS = [
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "qwen/qwen3-coder:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
+    "z-ai/glm-4.5-air:free",
+    "moonshotai/kimi-k2.6:free",
+    "openai/gpt-oss-120b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "meta-llama/llama-3.2-3b-instruct:free",
+    "liquid/lfm-2.5-1.2b-instruct:free",
+]
+
 
 class OpenRouterService:
-    """Async OpenRouter LLM client (OpenAI-compatible)."""
+    """Async OpenRouter LLM client (OpenAI-compatible) with auto-fallback."""
 
     def __init__(self, settings: Optional[Settings] = None) -> None:
         self._settings = settings or get_settings()
@@ -50,13 +67,56 @@ class OpenRouterService:
     ) -> dict[str, Any]:
         """Call OpenRouter /chat/completions and return {"answer": str, "model": str}.
 
-        Raises OllamaUnavailableError or OllamaResponseError on failure.
+        Automatically retries with fallback models on 429 rate limit errors.
+        Raises OllamaUnavailableError or OllamaResponseError if all models fail.
         """
         if not self._api_key:
             raise OllamaUnavailableError("OpenRouter API key is not configured")
 
-        chosen_model = model or self._default_model
+        # Build model list: primary first, then fallbacks (excluding primary)
+        primary = model or self._default_model
+        candidates = [primary] + [m for m in _FALLBACK_MODELS if m != primary]
 
+        last_error: Optional[Exception] = None
+
+        for candidate_model in candidates:
+            try:
+                result = await self._call_model(candidate_model, prompt, system)
+                if candidate_model != primary:
+                    logger.info(
+                        "OpenRouter: used fallback model %s (primary %s failed)",
+                        candidate_model,
+                        primary,
+                    )
+                return result
+            except OllamaResponseError as exc:
+                # 429 = rate limit, 404 = model not available -> try next model
+                err_str = str(exc)
+                if "429" in err_str or "404" in err_str:
+                    logger.warning(
+                        "OpenRouter model %s unavailable (%s), trying next...",
+                        candidate_model,
+                        "429 rate-limit" if "429" in err_str else "404 not found",
+                    )
+                    last_error = exc
+                    continue
+                # Other response errors are fatal
+                raise
+            except OllamaUnavailableError:
+                raise
+
+        # All models exhausted
+        raise OllamaResponseError(
+            f"All OpenRouter models rate-limited. Last error: {last_error}"
+        )
+
+    async def _call_model(
+        self,
+        chosen_model: str,
+        prompt: str,
+        system: Optional[str],
+    ) -> dict[str, Any]:
+        """Make a single OpenRouter API call for the given model."""
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -75,7 +135,6 @@ class OpenRouterService:
         }
 
         url = f"{self._base_url}/chat/completions"
-
         logger.debug("OpenRouter request: model=%s url=%s", chosen_model, url)
 
         try:
@@ -110,5 +169,7 @@ class OpenRouterService:
         if not answer:
             raise OllamaResponseError("OpenRouter returned empty response")
 
-        logger.debug("OpenRouter response: model=%s length=%d", chosen_model, len(answer))
+        logger.debug(
+            "OpenRouter response: model=%s length=%d", chosen_model, len(answer)
+        )
         return {"answer": answer, "model": chosen_model}
