@@ -97,7 +97,9 @@ class OllamaService:
 
         answer = ((data.get("message") or {}).get("content") or "").strip()
         # qwen3 kadang bocorin blok <think> walau think=false — buang.
+        # Kadang model output </think> tanpa opening <think>, handle semua kasus.
         answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+        answer = re.sub(r"^.*?</think>\s*", "", answer, flags=re.DOTALL).strip()
         if not answer:
             raise OllamaResponseError("Ollama returned empty response")
 
