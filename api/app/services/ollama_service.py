@@ -6,6 +6,7 @@ Keeps surface area small: one method to generate a single answer.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 import httpx
@@ -55,6 +56,13 @@ class OllamaService:
             "model": chosen_model,
             "prompt": prompt,
             "stream": False,
+            "think": self._settings.ollama_think,
+            "options": {
+                "num_ctx": self._settings.ollama_num_ctx,
+                "temperature": self._settings.ollama_temperature,
+                "top_p": self._settings.ollama_top_p,
+                "repeat_penalty": self._settings.ollama_repeat_penalty,
+            },
         }
         if system:
             payload["system"] = system
@@ -84,6 +92,8 @@ class OllamaService:
             raise OllamaResponseError("Ollama returned invalid JSON") from exc
 
         answer = (data.get("response") or "").strip()
+        # qwen3 kadang bocorin blok <think> walau think=false — buang.
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
         if not answer:
             raise OllamaResponseError("Ollama returned empty response")
 
