@@ -36,9 +36,6 @@ class DocumentService:
         content: str,
         source_type: str = "upload",
         tags: Optional[list[str]] = None,
-        chunk_size: int = 1000,
-        overlap: int = 150,
-        file_path: Optional[str] = None,
     ) -> dict[str, Any]:
         """Persist a document and embed its chunks into semantic memory."""
         if not title or not title.strip():
@@ -51,7 +48,7 @@ class DocumentService:
         document = KnowledgeDocument(
             title=title.strip(),
             file_name=file_name.strip(),
-            file_path=(file_path or file_name).strip(),
+            file_path=file_name.strip(),
             source_type=source_type,
             tags=tags,
         )
@@ -60,7 +57,7 @@ class DocumentService:
         await session.flush()
         document_id = document.id
 
-        chunks = chunk_text(content, chunk_size=chunk_size, overlap=overlap)
+        chunks = chunk_text(content)
 
         point_ids: list[str] = []
         try:

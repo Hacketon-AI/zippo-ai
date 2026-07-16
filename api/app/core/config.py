@@ -9,9 +9,6 @@ class Settings(BaseSettings):
     # App
     app_name: str = "personal-ai-assistant"
     app_env: str = "development"
-    app_host: str = "0.0.0.0"
-    app_port: int = 8000
-    log_level: str = "info"
 
     # API
     api_prefix: str = "/api/v1"
@@ -23,10 +20,12 @@ class Settings(BaseSettings):
     ollama_embed_model: str = "nomic-embed-text"
     ollama_embed_timeout_seconds: float = 60.0
 
-    # Ollama generation tuning
+    # Ollama generation tuning.
+    # Sampling defaults follow Qwen3's recommendation for non-thinking mode
+    # (temperature 0.7, top_p 0.8); thinking mode would want 0.6/0.95.
     ollama_num_ctx: int = 8192  # default Ollama 2048 kepotong oleh persona+memory
-    ollama_temperature: float = 0.6
-    ollama_top_p: float = 0.95
+    ollama_temperature: float = 0.7
+    ollama_top_p: float = 0.8
     ollama_repeat_penalty: float = 1.1
     ollama_think: bool = False  # qwen3 thinking mode: lambat, boros token
 
@@ -51,12 +50,6 @@ class Settings(BaseSettings):
     qdrant_vector_size: int = 768
     qdrant_search_limit: int = 5
     qdrant_score_threshold: float = 0.75
-
-    # External fallback (disabled by default)
-    external_fallback_enabled: bool = False
-    external_fallback_provider: str = "none"
-    external_fallback_api_key: str = ""
-    external_fallback_timeout_seconds: float = 60.0
 
     # CORS
     cors_origins: str = "http://localhost:5173"

@@ -1,6 +1,7 @@
 """Async Ollama HTTP client.
 
-Talks to a local Ollama server via the /api/generate endpoint.
+Talks to a local Ollama server via the /api/chat endpoint so that
+multi-turn history uses the model's native chat template.
 Keeps surface area small: one method to generate a single answer.
 """
 
@@ -35,26 +36,31 @@ class OllamaService:
         self._timeout = self._settings.ollama_timeout_seconds
         self._default_model = self._settings.ollama_default_model
 
-    @property
-    def default_model(self) -> str:
-        return self._default_model
-
     async def generate(
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
         system: Optional[str] = None,
+        history: Optional[list[dict[str, str]]] = None,
     ) -> dict[str, Any]:
-        """Call Ollama /api/generate and return the parsed payload.
+        """Call Ollama /api/chat and return the parsed payload.
 
-        Returns a dict with at least: {"answer": str, "model": str}.
+        history: prior turns as [{"role": "user"|"assistant", "content": str}],
+        oldest first. Returns a dict with at least: {"answer": str, "model": str}.
         Raises OllamaUnavailableError or OllamaResponseError on failure.
         """
-        chosen_model = model or self._default_model
+        chosen_model = self._default_model
+
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": prompt})
+
         payload: dict[str, Any] = {
             "model": chosen_model,
-            "prompt": prompt,
+            "messages": messages,
             "stream": False,
             "think": self._settings.ollama_think,
             "options": {
@@ -64,10 +70,8 @@ class OllamaService:
                 "repeat_penalty": self._settings.ollama_repeat_penalty,
             },
         }
-        if system:
-            payload["system"] = system
 
-        url = f"{self._base_url}/api/generate"
+        url = f"{self._base_url}/api/chat"
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -91,7 +95,7 @@ class OllamaService:
         except ValueError as exc:
             raise OllamaResponseError("Ollama returned invalid JSON") from exc
 
-        answer = (data.get("response") or "").strip()
+        answer = ((data.get("message") or {}).get("content") or "").strip()
         # qwen3 kadang bocorin blok <think> walau think=false — buang.
         answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
         if not answer:

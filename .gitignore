@@ -2,6 +2,10 @@
 .env
 .env.local
 
+# Node / frontend build
+node_modules/
+web/dist/
+
 # Python
 __pycache__/
 *.pyc

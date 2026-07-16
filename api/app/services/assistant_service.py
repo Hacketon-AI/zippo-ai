@@ -1,15 +1,14 @@
 """Assistant orchestration layer.
 
-Flow (Phase 6C):
+Flow:
 1. Check correction memory (high-confidence corrections skip everything).
 2. Check exact PostgreSQL cache.
 3. On cache miss: optionally recall semantic memory from Qdrant.
-4. Call local Ollama (with memory context as system prompt when available).
+4. Call the configured LLM (Ollama local, or OpenRouter when enabled).
 5. Save the answer to the PostgreSQL cache.
 6. Store the Q/A pair into Qdrant memory for future recall.
 
 Memory and cache failures never break the chat response.
-External fallback is added in a later phase.
 """
 
 from __future__ import annotations
@@ -23,10 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.cache_service import CacheService
-from app.services.external_fallback_service import (
-    ExternalFallbackError,
-    ExternalFallbackService,
-)
 from app.services.memory_service import MemoryService
 from app.services.ollama_service import OllamaError, OllamaService
 
@@ -67,12 +62,10 @@ class AssistantService:
         ollama: Optional[OllamaService] = None,
         cache: Optional[CacheService] = None,
         memory: Optional[MemoryService] = None,
-        fallback: Optional[ExternalFallbackService] = None,
     ) -> None:
         self._ollama = ollama or _create_llm_service()
         self._cache = cache or CacheService()
         self._memory = memory or MemoryService()
-        self._fallback = fallback or ExternalFallbackService()
 
     async def handle_chat(
         self,
@@ -82,9 +75,13 @@ class AssistantService:
         """Process a chat request and return a structured response."""
         session_id = request.session_id or str(uuid.uuid4())
 
+        # Follow-up questions ("lalu?", "kenapa begitu?") only make sense with
+        # their history, so exact cache and correction lookup are standalone-only.
+        is_followup = bool(request.history)
+
         # 1) Correction memory — highest priority.
         correction_error = False
-        if request.use_memory:
+        if request.use_memory and not is_followup:
             try:
                 correction_hits = await self._memory.recall(
                     request.message,
@@ -116,8 +113,12 @@ class AssistantService:
                         },
                     )
 
-        # 2) Exact PostgreSQL cache.
-        cached = await self._cache.get_cached_answer(db, request.message)
+        # 2) Exact PostgreSQL cache (standalone questions only).
+        cached = (
+            await self._cache.get_cached_answer(db, request.message)
+            if not is_followup
+            else None
+        )
         if cached is not None:
             metadata: dict[str, Any] = {
                 "mode": request.mode,
@@ -151,36 +152,20 @@ class AssistantService:
         used_memory = bool(memory_hits)
         top_score = memory_hits[0]["score"] if memory_hits else None
 
-        # 4) Call Ollama.
+        # 4) Call the LLM.
         full_system = self._compose_full_system(system_prompt)
-        result: Optional[dict[str, Any]] = None
-        ollama_error = False
+        history = [
+            {"role": m.role, "content": m.content} for m in request.history
+        ]
         try:
             result = await self._ollama.generate(
                 prompt=request.message,
                 system=full_system,
+                history=history or None,
             )
         except OllamaError:
-            logger.exception("Ollama generation failed")
-            ollama_error = True
-
-        # 4b) External fallback — only when Ollama failed, mode allows it, and enabled.
-        used_fallback = False
-        if ollama_error and request.mode == "external_allowed" and self._fallback.enabled:
-            try:
-                fallback_answer = await self._fallback.generate(
-                    message=request.message,
-                    context=full_system,
-                )
-                result = {"answer": fallback_answer, "model": "external"}
-                used_fallback = True
-            except ExternalFallbackError:
-                logger.exception("External fallback also failed")
-
-        # If both Ollama and fallback failed, re-raise so the route returns 503.
-        if result is None:
-            from app.services.ollama_service import OllamaUnavailableError
-            raise OllamaUnavailableError("Local model failed and no fallback available")
+            logger.exception("LLM generation failed")
+            raise
 
         metadata = {
             "model": result["model"],
@@ -190,46 +175,46 @@ class AssistantService:
             "memory_hit_count": len(memory_hits),
             "similarity_score": top_score,
             "used_context": used_memory,
-            "used_fallback": used_fallback,
         }
         if correction_error:
             metadata["correction_error"] = True
         if memory_error:
             metadata["memory_error"] = True
 
-        # 5) Save to PostgreSQL exact cache.
-        cache_source = "external" if used_fallback else "ollama"
-        try:
-            await self._cache.save_cached_answer(
-                db,
-                question=request.message,
-                answer=result["answer"],
-                source_type=cache_source,
-            )
-            await db.commit()
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to save chat answer to cache")
-            await db.rollback()
-            metadata["cache_save_error"] = True
+        # 5) Save to PostgreSQL exact cache. Follow-up answers depend on the
+        # conversation, so only standalone Q/A pairs are cached/remembered.
+        if not is_followup:
+            try:
+                await self._cache.save_cached_answer(
+                    db,
+                    question=request.message,
+                    answer=result["answer"],
+                    source_type="ollama",
+                )
+                await db.commit()
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to save chat answer to cache")
+                await db.rollback()
+                metadata["cache_save_error"] = True
 
-        # 6) Store Q/A pair into Qdrant memory (best-effort).
-        try:
-            await self._memory.remember(
-                text=f"Q: {request.message}\nA: {result['answer']}",
-                payload_extra={
-                    "type": "chat_qa",
-                    "question": request.message,
-                    "answer": result["answer"],
-                    "model": result["model"],
-                },
-            )
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to save chat answer to semantic memory")
-            metadata["memory_save_error"] = True
+            # 6) Store Q/A pair into Qdrant memory (best-effort).
+            try:
+                await self._memory.remember(
+                    text=f"Q: {request.message}\nA: {result['answer']}",
+                    payload_extra={
+                        "type": "chat_qa",
+                        "question": request.message,
+                        "answer": result["answer"],
+                        "model": result["model"],
+                    },
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to save chat answer to semantic memory")
+                metadata["memory_save_error"] = True
 
         return ChatResponse(
             answer=result["answer"],
-            source="external" if used_fallback else "ollama",
+            source="ollama",
             session_id=session_id,
             metadata=metadata,
         )
@@ -240,7 +225,7 @@ class AssistantService:
         if not hits:
             return None
         top = hits[:_MAX_MEMORY_CONTEXT]
-        lines = ["Relevant memory context (most relevant first):"]
+        lines = ["Konteks memori yang mungkin relevan (paling relevan duluan):"]
         for i, hit in enumerate(top, start=1):
             payload = hit.get("payload") or {}
             text = (payload.get("text") or "").strip()
@@ -250,8 +235,8 @@ class AssistantService:
         if len(lines) == 1:
             return None
         lines.append(
-            "Use the context only if it is relevant. "
-            "If it does not help, ignore it and answer from general knowledge."
+            "Pakai konteks di atas hanya jika benar-benar relevan dengan pertanyaan. "
+            "Kalau tidak membantu, abaikan dan jawab dari pengetahuan umum."
         )
         return "\n".join(lines)
 

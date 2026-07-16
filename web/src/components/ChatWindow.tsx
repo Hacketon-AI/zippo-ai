@@ -62,10 +62,18 @@ function ChatWindow({ visitorName, onNewMessage }: Props) {
       loading: true,
     };
 
+    // Prior turns for the backend: skip the welcome message, errors, and
+    // loading placeholders — only real user/assistant exchanges count.
+    const history = messages
+      .slice(1)
+      .filter((m) => !m.loading && !m.error && m.content)
+      .slice(-MAX_HISTORY)
+      .map((m) => ({ role: m.role, content: m.content }));
+
     // Keep only last MAX_HISTORY messages (excluding welcome) + new ones
     setMessages((prev) => {
-      const history = prev.slice(-MAX_HISTORY);
-      return [...history, userMsg, loadingMsg];
+      const kept = prev.slice(-MAX_HISTORY);
+      return [...kept, userMsg, loadingMsg];
     });
     setInput("");
     setSending(true);
@@ -81,6 +89,7 @@ function ChatWindow({ visitorName, onNewMessage }: Props) {
           message: text,
           mode: "external_allowed",
           use_memory: true,
+          history,
         }),
       });
 
@@ -119,7 +128,7 @@ function ChatWindow({ visitorName, onNewMessage }: Props) {
     } finally {
       setSending(false);
     }
-  }, [input, sending, onNewMessage]);
+  }, [input, sending, messages, onNewMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {

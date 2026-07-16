@@ -27,11 +27,7 @@ class EmbeddingService:
         self._model = self._settings.ollama_embed_model
         self._timeout = self._settings.ollama_embed_timeout_seconds
 
-    @property
-    def model(self) -> str:
-        return self._model
-
-    async def embed(self, text: str, *, model: Optional[str] = None) -> list[float]:
+    async def embed(self, text: str) -> list[float]:
         """Return the embedding vector for `text`.
 
         Raises OllamaUnavailableError on connection/timeout failures and
@@ -40,7 +36,7 @@ class EmbeddingService:
         if not text or not text.strip():
             raise ValueError("text must not be empty")
 
-        chosen_model = model or self._model
+        chosen_model = self._model
         url = f"{self._base_url}/api/embeddings"
         payload = {"model": chosen_model, "prompt": text}
 

@@ -11,8 +11,6 @@ interface Props {
   collapsed: boolean;
   onCollapse: () => void;
   visitorName: string;
-  activeTab: "chat" | "research";
-  onTabChange: (tab: "chat" | "research") => void;
   chatHistory: ChatHistoryItem[];
   activeChatId: string | null;
   onSelectChat: (id: string) => void;
@@ -23,8 +21,6 @@ function Sidebar({
   collapsed,
   onCollapse,
   visitorName,
-  activeTab,
-  onTabChange,
   chatHistory,
   activeChatId,
   onSelectChat,
@@ -74,27 +70,11 @@ function Sidebar({
 
         {/* Main Navigation */}
         <nav className="sidebar-nav">
-          <button
-            id="nav-chat"
-            className={`nav-item${activeTab === "chat" ? " active" : ""}`}
-            onClick={() => onTabChange("chat")}
-          >
+          <button id="nav-chat" className="nav-item active">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
             <span className="nav-item-text">Chat AI</span>
-          </button>
-
-          <button
-            id="nav-research"
-            className={`nav-item${activeTab === "research" ? " active" : ""}`}
-            onClick={() => onTabChange("research")}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <span className="nav-item-text">Live Research</span>
           </button>
         </nav>
 

@@ -49,10 +49,6 @@ class QdrantService:
         self._default_threshold = self._settings.qdrant_score_threshold
         self._client = client  # lazy-init
 
-    @property
-    def collection(self) -> str:
-        return self._collection
-
     def _get_client(self) -> QdrantClient:
         if self._client is None:
             self._client = QdrantClient(url=self._settings.qdrant_url)
@@ -64,11 +60,6 @@ class QdrantService:
             raise ValueError("vector must be a non-empty list of floats")
         if not all(isinstance(x, (int, float)) for x in vector):
             raise ValueError("vector must contain only numeric values")
-
-    @staticmethod
-    def _validate_payload(payload: dict) -> None:
-        if not isinstance(payload, dict):
-            raise ValueError("payload must be a dict")
 
     async def ensure_collection(self) -> None:
         """Create the memory collection if it does not exist."""
@@ -99,7 +90,6 @@ class QdrantService:
     ) -> str:
         """Upsert a single point and return its id."""
         self._validate_vector(vector)
-        self._validate_payload(payload)
         if len(vector) != self._vector_size:
             raise ValueError(
                 f"vector size {len(vector)} does not match configured "

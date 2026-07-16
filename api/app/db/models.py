@@ -7,19 +7,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy import (
     JSON,
     DateTime,
-    Float,
-    ForeignKey,
-    Integer,
     String,
     Text,
     func,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 def _new_uuid() -> str:
@@ -29,47 +26,6 @@ def _new_uuid() -> str:
 
 class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
-
-
-class ConversationSession(Base):
-    __tablename__ = "conversation_sessions"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
-    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    messages: Mapped[list["ChatMessage"]] = relationship(
-        back_populates="session",
-        cascade="all, delete-orphan",
-    )
-
-
-class ChatMessage(Base):
-    __tablename__ = "chat_messages"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
-    session_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("conversation_sessions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    role: Mapped[str] = mapped_column(String(20), nullable=False)  # user|assistant|system
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    meta: Mapped[Optional[dict[str, Any]]] = mapped_column("metadata", JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    session: Mapped["ConversationSession"] = relationship(back_populates="messages")
 
 
 class AiCache(Base):
@@ -82,8 +38,6 @@ class AiCache(Base):
     normalized_question: Mapped[str] = mapped_column(Text, nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=False)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    source_refs: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    confidence_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -106,7 +60,6 @@ class FeedbackCorrection(Base):
     wrong_answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     corrected_answer: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -134,8 +87,6 @@ class KnowledgeDocument(Base):
 
 __all__ = [
     "Base",
-    "ConversationSession",
-    "ChatMessage",
     "AiCache",
     "FeedbackCorrection",
     "KnowledgeDocument",

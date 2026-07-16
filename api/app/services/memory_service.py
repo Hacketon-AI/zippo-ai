@@ -28,10 +28,6 @@ class MemoryService:
         self._qdrant = qdrant or QdrantService()
 
     @staticmethod
-    def _now_iso() -> str:
-        return datetime.now(timezone.utc).isoformat()
-
-    @staticmethod
     def _build_payload(
         text: str, payload_extra: Optional[dict[str, Any]]
     ) -> dict[str, Any]:
@@ -39,7 +35,7 @@ class MemoryService:
         payload: dict[str, Any] = {
             "type": DEFAULT_MEMORY_TYPE,
             "text": text,
-            "created_at": MemoryService._now_iso(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         if payload_extra:
             payload.update(payload_extra)

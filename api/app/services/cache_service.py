@@ -64,8 +64,6 @@ class CacheService:
         answer: str,
         source_type: str = "ollama",
         ttl_seconds: Optional[int] = None,
-        confidence_score: Optional[float] = None,
-        source_refs: Optional[dict] = None,
     ) -> AiCache:
         """Insert or refresh a cache entry for the given question.
 
@@ -90,8 +88,6 @@ class CacheService:
                 normalized_question=normalized,
                 answer=answer,
                 source_type=source_type,
-                source_refs=source_refs,
-                confidence_score=confidence_score,
                 expires_at=expires_at,
             )
             session.add(row)
@@ -99,8 +95,6 @@ class CacheService:
             row.normalized_question = normalized
             row.answer = answer
             row.source_type = source_type
-            row.source_refs = source_refs
-            row.confidence_score = confidence_score
             row.expires_at = expires_at
 
         await session.flush()

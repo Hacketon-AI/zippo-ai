@@ -1,14 +1,11 @@
 import { useState, useCallback } from "react";
 import ChatWindow from "./components/ChatWindow";
 import NameModal from "./components/NameModal";
-import ResearchPanel from "./components/ResearchPanel";
 import Sidebar from "./components/Sidebar";
 import "./App.css";
 
 const STORAGE_KEY = "visitor_name";
 const MAX_CHAT_HISTORY = 10;
-
-type Tab = "chat" | "research";
 
 interface ChatHistoryItem {
   id: string;
@@ -24,7 +21,6 @@ function App() {
   const [name, setName] = useState<string | null>(
     () => localStorage.getItem(STORAGE_KEY)
   );
-  const [tab, setTab] = useState<Tab>("chat");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -47,12 +43,10 @@ function App() {
     setChatHistory((prev) => [newItem, ...prev].slice(0, MAX_CHAT_HISTORY));
     setActiveChatId(id);
     setChatKey((k) => k + 1);
-    setTab("chat");
   }, []);
 
   const handleSelectChat = useCallback((id: string) => {
     setActiveChatId(id);
-    setTab("chat");
     setChatKey((k) => k + 1);
   }, []);
 
@@ -83,8 +77,6 @@ function App() {
         collapsed={sidebarCollapsed}
         onCollapse={() => setSidebarCollapsed((c) => !c)}
         visitorName={name}
-        activeTab={tab}
-        onTabChange={setTab}
         chatHistory={chatHistory}
         activeChatId={activeChatId}
         onSelectChat={handleSelectChat}
@@ -109,43 +101,15 @@ function App() {
             </svg>
           </button>
 
-          <h1 className="topbar-title">
-            {tab === "chat" ? "Chat AI" : "Live Research"}
-          </h1>
-
-          {/* Tab switcher */}
-          <nav className="topbar-tabs">
-            <button
-              id="topbar-tab-chat"
-              className={`topbar-tab${tab === "chat" ? " active" : ""}`}
-              onClick={() => setTab("chat")}
-            >
-              Chat
-            </button>
-            <button
-              id="topbar-tab-research"
-              className={`topbar-tab${tab === "research" ? " active" : ""}`}
-              onClick={() => setTab("research")}
-            >
-              Research
-            </button>
-          </nav>
+          <h1 className="topbar-title">Chat AI</h1>
         </header>
 
         {/* Content */}
-        {tab === "chat" ? (
-          <ChatWindow
-            key={chatKey}
-            visitorName={name}
-            onNewMessage={handleFirstMessage}
-          />
-        ) : (
-          <div className="research-view">
-            <div className="research-inner">
-              <ResearchPanel />
-            </div>
-          </div>
-        )}
+        <ChatWindow
+          key={chatKey}
+          visitorName={name}
+          onNewMessage={handleFirstMessage}
+        />
       </div>
     </div>
   );

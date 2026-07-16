@@ -16,8 +16,6 @@ from app.db.models import FeedbackCorrection
 from app.schemas.feedback import FeedbackRequest
 from app.services.memory_service import MemoryService
 
-_CORRECTION_PRIORITY = "high"
-
 
 class FeedbackSaveError(Exception):
     """Raised when saving a correction fails so the caller can rollback."""
@@ -40,7 +38,6 @@ class FeedbackService:
             wrong_answer=request.wrong_answer.strip(),
             corrected_answer=request.corrected_answer.strip(),
             category=request.category.strip() if request.category else None,
-            priority=10,  # numeric high-priority sentinel
         )
         session.add(row)
         # Flush to get the id without committing.
@@ -49,7 +46,6 @@ class FeedbackService:
 
         memory_payload: dict[str, Any] = {
             "type": "correction",
-            "priority": _CORRECTION_PRIORITY,
             "question": row.question,
             "wrong_answer": row.wrong_answer,
             "corrected_answer": row.corrected_answer,

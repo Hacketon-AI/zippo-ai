@@ -1,11 +1,11 @@
 """OpenRouter LLM client (OpenAI-compatible API).
 
 Drop-in replacement for OllamaService. Same interface:
-  generate(prompt, *, model=None, system=None) -> {"answer": str, "model": str}
+  generate(prompt, *, system=None) -> {"answer": str, "model": str}
 
 Raises OllamaUnavailableError / OllamaResponseError on failure so that
-all existing error-handling in AssistantService and IntelligenceService
-continues to work without changes.
+all existing error-handling in AssistantService continues to work
+without changes.
 
 Auto-retries with fallback models when primary model hits 429 rate limit.
 """
@@ -21,8 +21,6 @@ from app.core.config import Settings, get_settings
 from app.services.ollama_service import OllamaResponseError, OllamaUnavailableError
 
 logger = logging.getLogger(__name__)
-
-_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # Fallback model chain — tried in order when primary model fails with 429 or 404
 _FALLBACK_MODELS = [
@@ -48,25 +46,18 @@ class OpenRouterService:
         self._api_key = self._settings.openrouter_api_key
         self._default_model = self._settings.openrouter_model
         self._timeout = self._settings.openrouter_timeout_seconds
-        self._base_url = (
-            self._settings.openrouter_base_url.rstrip("/")
-            if self._settings.openrouter_base_url
-            else _OPENROUTER_BASE
-        )
-
-    @property
-    def default_model(self) -> str:
-        return self._default_model
+        self._base_url = self._settings.openrouter_base_url.rstrip("/")
 
     async def generate(
         self,
         prompt: str,
         *,
-        model: Optional[str] = None,
         system: Optional[str] = None,
+        history: Optional[list[dict[str, str]]] = None,
     ) -> dict[str, Any]:
         """Call OpenRouter /chat/completions and return {"answer": str, "model": str}.
 
+        history: prior turns as [{"role": ..., "content": ...}], oldest first.
         Automatically retries with fallback models on 429 rate limit errors.
         Raises OllamaUnavailableError or OllamaResponseError if all models fail.
         """
@@ -74,14 +65,14 @@ class OpenRouterService:
             raise OllamaUnavailableError("OpenRouter API key is not configured")
 
         # Build model list: primary first, then fallbacks (excluding primary)
-        primary = model or self._default_model
+        primary = self._default_model
         candidates = [primary] + [m for m in _FALLBACK_MODELS if m != primary]
 
         last_error: Optional[Exception] = None
 
         for candidate_model in candidates:
             try:
-                result = await self._call_model(candidate_model, prompt, system)
+                result = await self._call_model(candidate_model, prompt, system, history)
                 if candidate_model != primary:
                     logger.info(
                         "OpenRouter: used fallback model %s (primary %s failed)",
@@ -115,11 +106,14 @@ class OpenRouterService:
         chosen_model: str,
         prompt: str,
         system: Optional[str],
+        history: Optional[list[dict[str, str]]] = None,
     ) -> dict[str, Any]:
         """Make a single OpenRouter API call for the given model."""
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})
+        if history:
+            messages.extend(history)
         messages.append({"role": "user", "content": prompt})
 
         payload: dict[str, Any] = {
