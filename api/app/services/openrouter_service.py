@@ -13,6 +13,7 @@ Auto-retries with fallback models when primary model hits 429 rate limit.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Optional
 
 import httpx
@@ -159,6 +160,10 @@ class OpenRouterService:
             raise OllamaResponseError(
                 f"Unexpected OpenRouter response structure: {str(data)[:200]}"
             ) from exc
+
+        # Strip thinking blocks (some models leak <think> even when not requested).
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+        answer = re.sub(r"^.*?</think>\s*", "", answer, flags=re.DOTALL).strip()
 
         if not answer:
             raise OllamaResponseError("OpenRouter returned empty response")
