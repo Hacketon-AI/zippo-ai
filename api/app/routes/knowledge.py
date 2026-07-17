@@ -13,11 +13,12 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import require_user
 from app.db.session import get_session
 from app.schemas.knowledge import KnowledgeUploadResponse
 from app.services.document_service import DocumentIngestError, DocumentService
 
-router = APIRouter(tags=["knowledge"])
+router = APIRouter(tags=["knowledge"], dependencies=[Depends(require_user)])
 
 _MAX_FILE_BYTES = 1 * 1024 * 1024  # 1 MB
 _ALLOWED_CONTENT_TYPES = {"text/plain", "text/markdown"}

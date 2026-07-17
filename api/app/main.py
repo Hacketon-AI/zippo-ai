@@ -10,7 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import get_settings
 from app.core.rate_limit import limiter
-from app.routes import chat, feedback, health, knowledge
+from app.routes import auth, chat, feedback, health, knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
     app.add_middleware(SlowAPIMiddleware)
 
     app.include_router(health.router, prefix=settings.api_prefix)
+    app.include_router(auth.router, prefix=settings.api_prefix)
     app.include_router(chat.router, prefix=settings.api_prefix)
     app.include_router(knowledge.router, prefix=settings.api_prefix)
     app.include_router(feedback.router, prefix=settings.api_prefix)

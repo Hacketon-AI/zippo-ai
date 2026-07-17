@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import require_user
 from app.core.config import get_settings
 from app.core.rate_limit import limiter
 from app.db.session import get_session
@@ -8,7 +9,7 @@ from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.assistant_service import AssistantService
 from app.services.ollama_service import OllamaResponseError, OllamaUnavailableError
 
-router = APIRouter(tags=["chat"])
+router = APIRouter(tags=["chat"], dependencies=[Depends(require_user)])
 
 _chat_rate_limit = get_settings().chat_rate_limit
 

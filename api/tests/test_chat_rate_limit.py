@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.auth import require_user
 from app.db.session import get_session
 from app.main import app
 from app.routes.chat import get_assistant_service
@@ -50,6 +51,7 @@ def _stub_assistant() -> object:
 def client() -> TestClient:
     app.dependency_overrides[get_session] = _stub_get_session
     app.dependency_overrides[get_assistant_service] = _stub_assistant
+    app.dependency_overrides[require_user] = lambda: object()
     try:
         # Reset slowapi storage so each test starts with a clean window.
         if hasattr(app.state, "limiter"):

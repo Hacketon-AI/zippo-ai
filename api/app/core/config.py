@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     chat_rate_limit: str = "10/minute"
 
+    # Auth
+    auth_session_ttl_hours: int = 168  # 7 days
+    login_rate_limit: str = "5/minute"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

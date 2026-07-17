@@ -4,13 +4,39 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f8f9fc" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <title>ZippoAI</title>
+    <title>Zippo AI — Percikan Ide dalam Sekejap</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   </head>
-  <body>
+  <body class="bg-atmosphere noise relative">
+    <!-- Cursor glow -->
+    <div class="cursor-glow" id="cursorGlow"></div>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
+      // Cursor glow logic
+      document.addEventListener('DOMContentLoaded', () => {
+        const glow = document.getElementById('cursorGlow');
+        let mouseX = 0, mouseY = 0, glowX = 0, glowY = 0;
+        document.addEventListener('mousemove', (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+        });
+        function updateGlow() {
+          glowX += (mouseX - glowX) * 0.1;
+          glowY += (mouseY - glowY) * 0.1;
+          if (glow) {
+            glow.style.left = glowX + 'px';
+            glow.style.top = glowY + 'px';
+          }
+          requestAnimationFrame(updateGlow);
+        }
+        updateGlow();
+      });
+    </script>
   </body>
 </html>

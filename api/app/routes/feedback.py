@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import require_user
 from app.db.session import get_session
 from app.schemas.feedback import FeedbackRequest, FeedbackResponse
 from app.services.feedback_service import FeedbackSaveError, FeedbackService
 
-router = APIRouter(tags=["feedback"])
+router = APIRouter(tags=["feedback"], dependencies=[Depends(require_user)])
 
 
 def _get_feedback_service() -> FeedbackService:
