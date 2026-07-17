@@ -21,12 +21,15 @@ function Login({ onBack, onLogin }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       
+      if (res.status === 429) {
+        throw new Error("Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.");
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Login failed" }));
         throw new Error(err.detail || `HTTP ${res.status}`);
@@ -81,16 +84,16 @@ function Login({ onBack, onLogin }: Props) {
           {/* Bottom stats */}
           <div className="grid grid-cols-3 gap-4 max-w-md mx-auto w-full">
             <div className="text-center">
-              <div className="font-display font-bold text-2xl gradient-text">2M+</div>
-              <div className="text-[10px] font-mono text-[var(--muted-2)] tracking-widest mt-1">PENGGUNA</div>
+              <div className="font-display font-bold text-2xl gradient-text">LOKAL</div>
+              <div className="text-[10px] font-mono text-[var(--muted-2)] tracking-widest mt-1">LLM DI VPS</div>
             </div>
             <div className="text-center">
-              <div className="font-display font-bold text-2xl gradient-text">50ms</div>
-              <div className="text-[10px] font-mono text-[var(--muted-2)] tracking-widest mt-1">RESPON</div>
+              <div className="font-display font-bold text-2xl gradient-text">PRIVAT</div>
+              <div className="text-[10px] font-mono text-[var(--muted-2)] tracking-widest mt-1">DATA MILIKMU</div>
             </div>
             <div className="text-center">
-              <div className="font-display font-bold text-2xl gradient-text">99.9%</div>
-              <div className="text-[10px] font-mono text-[var(--muted-2)] tracking-widest mt-1">UPTIME</div>
+              <div className="font-display font-bold text-2xl gradient-text">MEMORI</div>
+              <div className="text-[10px] font-mono text-[var(--muted-2)] tracking-widest mt-1">MAKIN PINTAR</div>
             </div>
           </div>
         </div>
@@ -180,7 +183,7 @@ function Login({ onBack, onLogin }: Props) {
           
           <div className="mt-8 flex items-center justify-center gap-2 text-[10px] font-mono text-[var(--muted-2)] tracking-widest login-secure">
             <i className="fa-solid fa-shield-halved"></i>
-            <span>END-TO-END ENCRYPTED · ZERO RETENTION</span>
+            <span>SELF-HOSTED · DATA TERSIMPAN DI SERVER SENDIRI</span>
           </div>
         </div>
       </div>

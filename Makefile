@@ -1,4 +1,4 @@
-.PHONY: help up down restart build logs ps health env db-revision db-migrate db-downgrade
+.PHONY: help up down restart build logs ps health env db-revision db-migrate db-downgrade backup
 
 help:
 	@echo "Targets:"
@@ -13,6 +13,10 @@ help:
 	@echo "  db-revision   - autogenerate a new Alembic revision (M=\"message\")"
 	@echo "  db-migrate    - apply Alembic migrations to head"
 	@echo "  db-downgrade  - downgrade one revision (REV=-1 to override)"
+	@echo "  backup        - dump PostgreSQL + snapshot Qdrant into ./backups"
+
+backup:
+	./scripts/backup.sh
 
 env:
 	@test -f .env || cp .env.example .env

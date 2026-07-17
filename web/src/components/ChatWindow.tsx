@@ -13,10 +13,12 @@ interface Message {
 
 interface Props {
   visitorName: string;
+  token: string | null;
   onNewMessage?: (userText: string) => void;
+  onAuthError?: () => void;
 }
 
-function ChatWindow({ visitorName, onNewMessage }: Props) {
+function ChatWindow({ visitorName, token, onNewMessage, onAuthError }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -58,7 +60,10 @@ function ChatWindow({ visitorName, onNewMessage }: Props) {
     try {
       const res = await fetch(`${API_BASE}/api/v1/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           message: text,
           mode: "external_allowed",
@@ -67,6 +72,13 @@ function ChatWindow({ visitorName, onNewMessage }: Props) {
         }),
       });
 
+      if (res.status === 401) {
+        onAuthError?.();
+        throw new Error("Sesi berakhir. Silakan masuk lagi.");
+      }
+      if (res.status === 429) {
+        throw new Error("Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.");
+      }
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -101,7 +113,7 @@ function ChatWindow({ visitorName, onNewMessage }: Props) {
     } finally {
       setSending(false);
     }
-  }, [input, sending, messages, onNewMessage]);
+  }, [input, sending, messages, token, onNewMessage, onAuthError]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {

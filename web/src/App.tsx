@@ -146,7 +146,9 @@ function App() {
           <ChatWindow
             key={chatKey}
             visitorName={name || "User"}
+            token={token}
             onNewMessage={handleFirstMessage}
+            onAuthError={handleLogout}
           />
         </main>
       </div>

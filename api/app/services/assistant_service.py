@@ -3,10 +3,11 @@
 Flow:
 1. Check correction memory (high-confidence corrections skip everything).
 2. Check exact PostgreSQL cache.
-3. On cache miss: optionally recall semantic memory from Qdrant.
-4. Call the configured LLM (Ollama local, or OpenRouter when enabled).
-5. Save the answer to the PostgreSQL cache.
-6. Store the Q/A pair into Qdrant memory for future recall.
+3. Semantic cache: near-identical past question in Qdrant reuses its answer.
+4. On cache miss: optionally recall semantic memory from Qdrant.
+5. Call the configured LLM (Ollama local, or OpenRouter when enabled).
+6. Save the answer to the PostgreSQL cache.
+7. Store the Q/A pair into Qdrant memory for future recall.
 
 Memory and cache failures never break the chat response.
 """
@@ -34,6 +35,12 @@ _MAX_MEMORY_CONTEXT = 3
 _CORRECTION_SCORE_THRESHOLD = 0.90
 _CORRECTION_LIMIT = 1
 _CORRECTION_FILTER = {"type": "correction"}
+
+# Semantic cache: reuse a stored chat answer when the question is
+# near-identical, skipping the LLM call entirely.
+_SEMANTIC_CACHE_SCORE_THRESHOLD = 0.95
+_SEMANTIC_CACHE_LIMIT = 1
+_SEMANTIC_CACHE_FILTER = {"type": "chat_qa"}
 
 # Load persona system prompt once at module level.
 _PERSONA_PATH = Path(__file__).resolve().parent.parent / "prompts" / "system_prompt.md"
@@ -137,7 +144,43 @@ class AssistantService:
                 metadata=metadata,
             )
 
-        # 3) Optional semantic memory recall.
+        # 3) Semantic cache — a near-identical past question reuses its
+        # stored answer without calling the LLM (standalone only).
+        if request.use_memory and not is_followup:
+            try:
+                semantic_hits = await self._memory.recall(
+                    request.message,
+                    limit=_SEMANTIC_CACHE_LIMIT,
+                    score_threshold=_SEMANTIC_CACHE_SCORE_THRESHOLD,
+                    payload_filter=_SEMANTIC_CACHE_FILTER,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("Semantic cache recall failed; continuing")
+                semantic_hits = []
+
+            if semantic_hits:
+                top = semantic_hits[0]
+                payload = top.get("payload") or {}
+                answer = (payload.get("answer") or "").strip()
+                if answer:
+                    metadata = {
+                        "mode": request.mode,
+                        "cache_hit": True,
+                        "semantic_cache_hit": True,
+                        "used_memory": True,
+                        "memory_hit_count": 1,
+                        "similarity_score": top["score"],
+                    }
+                    if correction_error:
+                        metadata["correction_error"] = True
+                    return ChatResponse(
+                        answer=answer,
+                        source="cache",
+                        session_id=session_id,
+                        metadata=metadata,
+                    )
+
+        # 4) Optional semantic memory recall.
         memory_hits: list[dict[str, Any]] = []
         memory_error = False
         if request.use_memory:
@@ -152,7 +195,7 @@ class AssistantService:
         used_memory = bool(memory_hits)
         top_score = memory_hits[0]["score"] if memory_hits else None
 
-        # 4) Call the LLM.
+        # 5) Call the LLM.
         full_system = self._compose_full_system(system_prompt)
         history = [
             {"role": m.role, "content": m.content} for m in request.history
@@ -181,7 +224,7 @@ class AssistantService:
         if memory_error:
             metadata["memory_error"] = True
 
-        # 5) Save to PostgreSQL exact cache. Follow-up answers depend on the
+        # 6) Save to PostgreSQL exact cache. Follow-up answers depend on the
         # conversation, so only standalone Q/A pairs are cached/remembered.
         if not is_followup:
             try:
@@ -197,7 +240,7 @@ class AssistantService:
                 await db.rollback()
                 metadata["cache_save_error"] = True
 
-            # 6) Store Q/A pair into Qdrant memory (best-effort).
+            # 7) Store Q/A pair into Qdrant memory (best-effort).
             try:
                 await self._memory.remember(
                     text=f"Q: {request.message}\nA: {result['answer']}",
